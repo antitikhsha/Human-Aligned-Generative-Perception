@@ -62,7 +62,8 @@ things image/Wiki images/
 things image/*.pdf
 things image/**/*.mat
 
-# Odd one out large data files (keep only .csv and code)
+# Odd one out large data files (keep small CSVs, exclude large CSV and data folders)
+odd one out/triplet_dataset/triplets_large_final_correctednc_correctedorder.csv
 odd one out/data/
 odd one out/external_data/
 odd one out/extrapolation_data/
