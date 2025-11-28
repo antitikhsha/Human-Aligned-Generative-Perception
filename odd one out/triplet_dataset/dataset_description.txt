@@ -1,0 +1,39 @@
+Description:
+
+csv-file: all raw triplets as they were collected but with corrected ordering for triplets.
+Explanation: When images were uploaded for running the Mturk study, due to different sorting
+some images were in the incorrect order (e.g. chicken_wire would either come before or 
+after chicken1). This was corrected to match the order of concepts in THINGS.
+However, the dataset is not resorted yet. Please use the sorting index sortind to correct 
+for this. One way to do so is the following (example MATLAB code):
+for i_obj = 1:1854
+    triplet_validationdata66(triplet_validationdata66==sortind(i_obj)) = 10000+i_obj;
+end
+triplet_validationdata66 = triplet_validationdata66-10000;
+
+NB: WorkerID was recoded, all workers are anonymized.
+NB2: Missing age / gender information can be derived for the same participant IDs and the 
+     time difference between experiments.
+NB3: All data were denoised using slightly stricter criteria than those of the original data.
+NB4: The dataset numbers in the csv are not all meaningful and refer to time windows when 
+     were collected, nothing else.
+NB5: For the noise ceiling triplets, for the within comparison (testset2_repeat.txt), triplets 
+     that were repeated too close in time were removed from downstream analyses. Also, any triplets
+     appearing more than twice in a given triplet were also removed (this was likely a coding error
+     when they were created or an unlucky coincidence). This means there are slight deviations btw
+     the final number in the testsets and the noise ceiling triplets in the full csv.
+
+All derived data are triplets recoded to 0 base (i.e. everything minus 1), and resorted 
+to have the chosen pair first, followed by the odd one out at the end. For example, if 
+the triplet was [1001 593 203] and the choice was 1, then it will be [593 203 1001].
+
+trainset.txt: 90% of regular data
+validationset.txt: 10% of regular data, sampled every 10+/5 triplets (i.e. since a HIT is
+     20 triplets, around 18 for training and 2 for test)
+testset1.txt: Noise ceiling triplets (1000 repeatedly sampled triplets), used for original dataset
+testset2.txt: Separate set of noise ceiling triplets but primarily from early trials within a HIT
+testset2_repeat.txt: Same triplets repeated within subject in the same HIT.
+testset3.txt: Much larger set of between-subject repeats of the same 1000 triplets.
+
+NB: Testset1 was acquired after dataset1, while testset2 and testset3 were acquired during
+the first ~1.5 million trials of the largest dataset.

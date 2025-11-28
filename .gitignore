@@ -1,0 +1,93 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+hpe/
+
+# PyTorch models and results
+*.pth
+*.npz
+results/
+checkpoints/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ========================================
+# EXCLUDE ALL LARGE DATA FILES
+# ========================================
+
+# THINGS images (teammates download separately from OSF)
+things image/
+things-256/
+things-resized-*/
+things-dataset*.zip
+things image/images_THINGS/
+things image/images_THINGSplus-CC0.zip
+things image/Wiki images/
+things image/*.pdf
+things image/**/*.mat
+
+# Odd one out large data files (keep only .csv and code)
+odd one out/data/
+odd one out/external_data/
+odd one out/extrapolation_data/
+odd one out/models/
+odd one out/variables/
+odd one out/*.pdf
+odd one out/**/*.mat
+
+# StyleGAN2 training outputs (regenerate locally)
+training-runs-*/
+stylegan2-ada-pytorch/.venv/
+stylegan2-ada-pytorch/**/__pycache__/
+stylegan2-ada-pytorch/torch_utils/__pycache__/
+stylegan2-ada-pytorch/dnnlib/__pycache__/
+stylegan2-ada-pytorch/training/__pycache__/
+stylegan2-ada-pytorch/.cache/
+
+# Temporary files
+*.log
+*.tmp
+.cache/
+*.mat
+*.pdf
+
+# Large binaries
+*.pkl
+*.h5
+*.hdf5
