@@ -1,0 +1,352 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Complete AWS infrastructure for StyleGAN2 training with THINGS dataset'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: 'VLR-StyleGAN2'
+    Description: 'Name for the project resources'
+  
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: 'EC2 Key Pair for SSH access'
+  
+  InstanceType:
+    Type: String
+    Default: 'g4dn.xlarge'
+    AllowedValues:
+      - 'g4dn.xlarge'
+      - 'g4dn.2xlarge'
+      - 'p3.2xlarge'
+      - 'p3.8xlarge'
+    Description: 'EC2 instance type for training'
+  
+  VolumeSize:
+    Type: Number
+    Default: 500
+    MinValue: 100
+    MaxValue: 2000
+    Description: 'EBS volume size in GB'
+
+Resources:
+  # S3 Bucket for dataset and model storage
+  DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-data-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+          - Id: TransitionToIA
+            Status: Enabled
+            Transition:
+              StorageClass: STANDARD_IA
+              TransitionInDays: 30
+
+  # S3 Bucket for model checkpoints
+  CheckpointBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-checkpoints-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # S3 Bucket for logs and outputs
+  OutputBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-outputs-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # VPC for secure networking
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: '10.0.0.0/16'
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-vpc'
+
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-igw'
+
+  # Attach Internet Gateway to VPC
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Public Subnet
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: '10.0.1.0/24'
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-public-subnet'
+
+  # Route Table for Public Subnet
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-public-rt'
+
+  # Route to Internet Gateway
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: '0.0.0.0/0'
+      GatewayId: !Ref InternetGateway
+
+  # Associate Route Table with Public Subnet
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  # Security Group for Training Instance
+  TrainingSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Security group for StyleGAN2 training instance'
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: '0.0.0.0/0'  # Restrict this to your IP in production
+        - IpProtocol: tcp
+          FromPort: 8888
+          ToPort: 8888
+          CidrIp: '0.0.0.0/0'  # Jupyter notebook port
+        - IpProtocol: tcp
+          FromPort: 6006
+          ToPort: 6006
+          CidrIp: '0.0.0.0/0'  # TensorBoard port
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: '0.0.0.0/0'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-training-sg'
+
+  # IAM Role for EC2 instance
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-ec2-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub '${DataBucket}/*'
+                  - !Sub '${CheckpointBucket}/*'
+                  - !Sub '${OutputBucket}/*'
+                  - !Ref DataBucket
+                  - !Ref CheckpointBucket
+                  - !Ref OutputBucket
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListMetrics
+                Resource: '*'
+
+  # Instance Profile
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub '${ProjectName}-instance-profile'
+      Roles:
+        - !Ref EC2Role
+
+  # Launch Template for Training Instance
+  TrainingLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub '${ProjectName}-launch-template'
+      LaunchTemplateData:
+        ImageId: ami-0c02fb55956c7d316  # Deep Learning AMI (Ubuntu 20.04)
+        InstanceType: !Ref InstanceType
+        KeyName: !Ref KeyPairName
+        IamInstanceProfile:
+          Arn: !GetAtt EC2InstanceProfile.Arn
+        SecurityGroupIds:
+          - !Ref TrainingSecurityGroup
+        BlockDeviceMappings:
+          - DeviceName: /dev/sda1
+            Ebs:
+              VolumeSize: !Ref VolumeSize
+              VolumeType: gp3
+              DeleteOnTermination: true
+              Encrypted: true
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            
+            # Update system
+            apt-get update
+            apt-get upgrade -y
+            
+            # Install additional dependencies
+            apt-get install -y htop nvtop screen tmux git-lfs
+            
+            # Install AWS CLI v2
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip awscliv2.zip
+            ./aws/install
+            
+            # Create project directory
+            mkdir -p /home/ubuntu/stylegan2
+            cd /home/ubuntu/stylegan2
+            
+            # Set ownership
+            chown -R ubuntu:ubuntu /home/ubuntu/stylegan2
+            
+            # Create environment setup script
+            cat > /home/ubuntu/setup_environment.sh << 'EOF'
+            #!/bin/bash
+            
+            # Activate conda environment
+            source /home/ubuntu/anaconda3/bin/activate pytorch
+            
+            # Install required packages
+            pip install --upgrade pip
+            pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2
+            pip install pillow==10.0.1 scipy requests tqdm ninja tensorboard
+            pip install boto3 pyyaml click imageio imageio-ffmpeg
+            pip install opencv-python matplotlib seaborn pandas
+            pip install jupyterlab notebook
+            
+            # Set AWS region
+            aws configure set default.region ${AWS::Region}
+            
+            echo "Environment setup complete!"
+            EOF
+            
+            chmod +x /home/ubuntu/setup_environment.sh
+            chown ubuntu:ubuntu /home/ubuntu/setup_environment.sh
+            
+            # Signal CloudFormation
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource TrainingInstance --region ${AWS::Region}
+
+  # CloudWatch Alarm for High CPU
+  HighCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-high-cpu'
+      AlarmDescription: 'Alarm for high CPU usage'
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 90
+      ComparisonOperator: GreaterThanThreshold
+
+  # CloudWatch Alarm for Billing
+  BillingAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-billing-alarm'
+      AlarmDescription: 'Alarm for high AWS charges'
+      MetricName: EstimatedCharges
+      Namespace: AWS/Billing
+      Statistic: Maximum
+      Period: 86400
+      EvaluationPeriods: 1
+      Threshold: 100  # $100 threshold
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Currency
+          Value: USD
+
+Outputs:
+  DataBucketName:
+    Description: 'S3 bucket for dataset storage'
+    Value: !Ref DataBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-DataBucket'
+
+  CheckpointBucketName:
+    Description: 'S3 bucket for model checkpoints'
+    Value: !Ref CheckpointBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-CheckpointBucket'
+
+  OutputBucketName:
+    Description: 'S3 bucket for outputs'
+    Value: !Ref OutputBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-OutputBucket'
+
+  LaunchTemplateId:
+    Description: 'Launch template for training instances'
+    Value: !Ref TrainingLaunchTemplate
+    Export:
+      Name: !Sub '${AWS::StackName}-LaunchTemplate'
+
+  SecurityGroupId:
+    Description: 'Security group for training instances'
+    Value: !Ref TrainingSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-SecurityGroup'
+
+  SubnetId:
+    Description: 'Public subnet for training instances'
+    Value: !Ref PublicSubnet
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicSubnet'

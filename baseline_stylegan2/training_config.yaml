@@ -1,0 +1,124 @@
+# StyleGAN2 Training Configuration for AWS
+# Configure this file according to your specific setup
+
+# AWS Configuration
+aws_region: "us-east-2"
+data_bucket: "vlr-stylegan2-data-YOUR_ACCOUNT_ID"  # Replace with actual bucket name
+checkpoint_bucket: "vlr-stylegan2-checkpoints-YOUR_ACCOUNT_ID"  # Replace with actual bucket name  
+output_bucket: "vlr-stylegan2-outputs-YOUR_ACCOUNT_ID"  # Replace with actual bucket name
+
+# Training Parameters
+batch_size: 8  # Adjust based on GPU memory
+learning_rate: 0.002
+num_epochs: 100
+image_size: 256  # THINGS dataset native resolution
+latent_dim: 512  # StyleGAN2 latent dimension
+
+# Model Configuration
+use_hpe: true  # Enable Human Perceptual Embeddings
+hpe_weight: 1.0  # Weight for HPE loss component
+gradient_penalty_weight: 10.0  # Weight for gradient penalty
+
+# Checkpointing
+save_interval: 1000  # Save checkpoint every N steps
+checkpoint_prefix: "stylegan2_things"
+
+# Hardware Configuration
+mixed_precision: true  # Enable mixed precision training for memory efficiency
+num_workers: 4  # Number of data loader workers
+
+# Instance-specific settings (adjust based on your EC2 instance)
+# For g4dn.xlarge (1 GPU, 16GB RAM):
+#   batch_size: 8
+#   num_workers: 4
+#   mixed_precision: true
+#
+# For p3.2xlarge (1 V100, 61GB RAM):
+#   batch_size: 16
+#   num_workers: 8
+#   mixed_precision: true
+#
+# For p3.8xlarge (4 V100s, 244GB RAM):
+#   batch_size: 32
+#   num_workers: 16
+#   mixed_precision: true
+
+# Dataset Configuration
+dataset:
+  name: "things"
+  concepts: 1854  # Number of object concepts in THINGS
+  images_per_concept: 15  # Average images per concept
+  
+# HPE Configuration (if use_hpe: true)
+hpe:
+  embedding_dim: 66  # THINGS behavioral embedding dimension
+  similarity_metric: "cosine"
+  triplet_margin: 0.2
+
+# Logging Configuration
+logging:
+  tensorboard_dir: "runs/stylegan2_things"
+  log_interval: 100  # Log metrics every N steps
+  image_log_interval: 1000  # Log sample images every N steps
+
+# Advanced Training Options
+training:
+  # Exponential moving average for generator weights
+  ema_beta: 0.999
+  ema_start_iter: 10000
+  
+  # Progressive training (if desired)
+  progressive: false
+  progressive_stages: [64, 128, 256]
+  
+  # Regularization
+  r1_penalty_weight: 10.0  # R1 regularization weight
+  path_length_penalty_weight: 2.0  # Path length regularization
+  
+  # Learning rate scheduling
+  lr_scheduler: "none"  # Options: none, cosine, step
+  lr_decay_steps: [50000, 100000]
+  lr_decay_factor: 0.5
+
+# Evaluation Configuration
+evaluation:
+  fid_interval: 5000  # Compute FID every N steps
+  fid_samples: 10000  # Number of samples for FID computation
+  inception_features: true  # Use Inception features for FID
+  
+  # Human alignment evaluation
+  human_similarity_eval: true
+  similarity_eval_interval: 10000
+  similarity_test_samples: 1000
+
+# AWS Cost Optimization
+cost_optimization:
+  spot_instances: false  # Use spot instances (cheaper but can be interrupted)
+  auto_shutdown: true  # Automatically shutdown instance when training completes
+  billing_alarm_threshold: 100  # Billing alarm threshold in USD
+  
+# Data Management
+data:
+  cache_dataset: true  # Cache dataset locally for faster access
+  cache_path: "/tmp/things_cache"
+  preprocess_on_demand: false  # Preprocess images on-the-fly vs batch preprocessing
+  
+  # Data augmentation
+  augmentation:
+    enabled: true
+    horizontal_flip: true
+    color_jitter: 0.1
+    rotation: 5  # degrees
+    
+# Monitoring and Alerts
+monitoring:
+  cloudwatch_metrics: true
+  custom_metrics: ["gpu_utilization", "memory_usage", "training_loss"]
+  alert_on_anomalies: true
+  slack_webhook: ""  # Optional: Slack webhook for alerts
+
+# Multi-GPU Configuration (for distributed training)
+distributed:
+  backend: "nccl"
+  find_unused_parameters: false
+  gradient_as_bucket_view: true
