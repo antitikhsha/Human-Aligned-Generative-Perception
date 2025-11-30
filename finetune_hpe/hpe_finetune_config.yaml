@@ -1,0 +1,47 @@
+# HPE Fine-tuning Configuration
+# Step 5.3: Fine-tune HPE with New Data
+
+# Model configuration
+model:
+  input_dim: 2048          # Dimension of input features (e.g., ResNet features)
+  embedding_dim: 66        # HPE embedding dimension (matches THINGS dataset)
+  dropout: 0.1            # Dropout rate for regularization
+
+# Data configuration
+data:
+  # Paths can be local or S3 URLs (s3://bucket/path)
+  train_triplets_path: "s3://vlr-project-bucket/data/triplets/train_triplets.json"
+  val_triplets_path: "s3://vlr-project-bucket/data/triplets/val_triplets.json"
+  train_features_path: "s3://vlr-project-bucket/data/features/train_features.pt"
+  val_features_path: "s3://vlr-project-bucket/data/features/val_features.pt"
+
+# Training configuration
+training:
+  num_epochs: 50
+  batch_size: 64
+  learning_rate: 0.001
+  weight_decay: 1e-5
+  triplet_margin: 1.0     # Margin for triplet loss
+  grad_clip_norm: 1.0     # Gradient clipping norm
+  num_workers: 4          # Number of data loading workers
+  save_freq: 5            # Save checkpoint every N epochs
+
+# Pre-trained model (optional)
+pretrained_model_path: "s3://vlr-project-bucket/models/hpe_base.pt"
+resume_training: false    # Set to true to resume from checkpoint
+
+# Output configuration
+output:
+  checkpoint_dir: "./checkpoints"
+  s3_bucket: "vlr-project-bucket"
+  s3_prefix: "hpe_models/finetuned"
+
+# Wandb configuration (optional)
+use_wandb: true
+wandb_project: "hpe-human-aligned-perception"
+wandb_entity: "your-wandb-entity"  # Replace with your wandb username/team
+
+# AWS configuration
+aws:
+  region: "us-east-2"
+  instance_type: "p3.2xlarge"  # For reference when launching EC2

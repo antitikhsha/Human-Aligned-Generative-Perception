@@ -1,0 +1,240 @@
+---
+# Phase 5: Closed-Loop Human Feedback Configuration
+project:
+  name: "VLR-Phase5"
+  version: "1.0.0"
+  description: "Human-aligned generative perception feedback collection"
+
+aws:
+  region: "us-east-2"
+  profile: "VLR_project"
+  key_pair_name: "vlr-keypair"
+  instance_profile: "VLR-EC2-Instance-Profile"
+
+# Phase 5 specific configuration
+phase5:
+  # Image Generation Settings
+  generation:
+    num_generation_instances: 2
+    generation_instance_type: "g4dn.xlarge"  # ~$0.53/hour
+    max_concurrent_tasks: 4
+    images_per_batch: 50
+    batch_timeout_seconds: 1800  # 30 minutes
+    
+    # Generation parameters
+    generation_params:
+      concepts_to_generate:
+        - "airplane"
+        - "bicycle"
+        - "car"
+        - "dog"
+        - "elephant"
+        - "flower"
+        - "guitar"
+        - "horse"
+        - "keyboard"
+        - "lamp"
+      variations_per_concept: 5
+      interpolation_steps: 10
+      hpe_guided_samples: 20
+      
+    # Model settings
+    model:
+      checkpoint_s3_key: "models/stylegan2_hpe_final.pth"
+      hpe_embeddings_key: "embeddings/hpe_embeddings.pkl"
+      device: "cuda"
+      batch_size: 4
+      
+  # Human Feedback Collection Settings
+  feedback:
+    # Web interface settings
+    web_interface:
+      max_triplets_per_user: 50
+      session_timeout_minutes: 30
+      min_response_time_ms: 500
+      max_response_time_ms: 30000
+      
+    # Triplet creation settings
+    triplet_creation:
+      triplets_per_concept: 20
+      min_images_per_triplet: 3
+      max_images_per_triplet: 3
+      similarity_threshold: 0.7
+      
+    # Quality control
+    quality_control:
+      min_participants_per_triplet: 5
+      max_participants_per_triplet: 20
+      agreement_threshold: 0.6
+      exclude_outliers: true
+      
+  # Data Storage Settings
+  storage:
+    # S3 bucket structure
+    s3_structure:
+      generated_images: "generated_images/{job_id}/{task_id}/"
+      feedback_data: "feedback_data/{session_id}/"
+      processed_results: "processed_results/{analysis_id}/"
+      
+    # Retention policies
+    retention:
+      raw_images_days: 90
+      feedback_data_days: 365
+      processed_results_days: 730
+      
+    # Backup settings
+    backup:
+      enabled: true
+      frequency: "daily"
+      cross_region_replication: true
+      target_region: "us-west-2"
+
+# Cost Management
+cost_management:
+  # Budget alerts
+  budget_limits:
+    daily_limit_usd: 50
+    weekly_limit_usd: 200
+    monthly_limit_usd: 500
+    
+  # Auto-shutdown settings
+  auto_shutdown:
+    enabled: true
+    idle_timeout_minutes: 30
+    max_runtime_hours: 8
+    
+  # Instance optimization
+  instance_optimization:
+    use_spot_instances: true
+    spot_max_price_usd: 0.30
+    mixed_instance_policy:
+      on_demand_percentage: 20
+      spot_allocation_strategy: "diversified"
+
+# Monitoring and Logging
+monitoring:
+  cloudwatch:
+    log_retention_days: 30
+    metrics_enabled: true
+    custom_metrics:
+      - "GenerationLatency"
+      - "FeedbackCompletionRate"
+      - "UserEngagement"
+      
+  alarms:
+    - name: "HighGenerationLatency"
+      metric: "GenerationLatency"
+      threshold: 300  # seconds
+      comparison: "GreaterThanThreshold"
+      
+    - name: "LowFeedbackCompletionRate"
+      metric: "FeedbackCompletionRate"
+      threshold: 0.8
+      comparison: "LessThanThreshold"
+      
+    - name: "HighCostAlert"
+      metric: "EstimatedCharges"
+      threshold: 100  # USD
+      comparison: "GreaterThanThreshold"
+
+# Experimental Settings
+experiments:
+  # A/B testing for feedback collection
+  ab_testing:
+    enabled: true
+    test_variants:
+      - name: "standard_interface"
+        percentage: 50
+        description: "Standard triplet selection interface"
+        
+      - name: "enhanced_interface"
+        percentage: 50
+        description: "Enhanced interface with similarity ratings"
+        
+  # Human feedback analysis
+  feedback_analysis:
+    real_time_processing: true
+    batch_processing_schedule: "0 */6 * * *"  # Every 6 hours
+    analysis_methods:
+      - "agreement_analysis"
+      - "response_time_analysis"
+      - "outlier_detection"
+      - "concept_similarity_mapping"
+      
+# Security Settings
+security:
+  # Data encryption
+  encryption:
+    s3_encryption: "AES256"
+    dynamodb_encryption: true
+    lambda_env_encryption: true
+    
+  # Access control
+  access_control:
+    api_rate_limiting:
+      requests_per_minute: 60
+      burst_capacity: 120
+      
+    cors_settings:
+      allowed_origins: ["*"]
+      allowed_methods: ["GET", "POST", "OPTIONS"]
+      max_age_seconds: 3600
+      
+  # Data privacy
+  privacy:
+    anonymize_user_data: true
+    data_retention_compliance: "GDPR"
+    user_consent_required: true
+
+# Deployment Settings
+deployment:
+  # CloudFormation settings
+  cloudformation:
+    stack_name: "VLR-Phase5-Infrastructure"
+    template_file: "phase5_cloudformation_template.yaml"
+    parameters_file: "phase5_cf_parameters.json"
+    
+  # Lambda deployment
+  lambda:
+    runtime: "python3.9"
+    memory_size: 512
+    timeout_seconds: 30
+    environment_variables:
+      LOG_LEVEL: "INFO"
+      ENABLE_DEBUG: "false"
+      
+  # Auto Scaling
+  auto_scaling:
+    min_instances: 1
+    max_instances: 5
+    target_cpu_utilization: 70
+    scale_out_cooldown: 300
+    scale_in_cooldown: 300
+
+# Development Settings
+development:
+  # Local testing
+  local_testing:
+    use_localstack: true
+    mock_aws_services: ["s3", "dynamodb", "sqs"]
+    test_data_samples: 100
+    
+  # CI/CD
+  cicd:
+    enabled: false  # Set to true when ready for automated deployment
+    build_on_commit: false
+    deploy_on_merge: false
+    
+# Validation Rules
+validation:
+  # Image generation validation
+  generation_validation:
+    min_image_resolution: [256, 256]
+    max_image_size_mb: 5
+    allowed_formats: ["PNG", "JPEG"]
+    
+  # Feedback validation
+  feedback_validation:
+    min_response_time_ms: 500
+    max_response_time_ms: 30000
+    required_fields: ["user_id", "triplet_id", "selected_image_index"]
