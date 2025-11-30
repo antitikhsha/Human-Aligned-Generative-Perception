@@ -1,0 +1,150 @@
+# HPE-StyleGAN2 Training Configuration
+# Phase 3: Human-Aligned Generative Perception
+
+# Model Architecture
+model:
+  z_dim: 512              # Latent dimension
+  w_dim: 512              # Intermediate latent dimension
+  hpe_dim: 66             # Human Perceptual Embedding dimension (from THINGS)
+  img_channels: 3         # RGB images
+  img_resolution: 256     # Target image resolution
+
+# Training Parameters
+training:
+  epochs: 200             # Total training epochs
+  batch_size: 16          # Batch size (adjust based on GPU memory)
+  num_workers: 4          # DataLoader workers
+  
+  # Learning Rates
+  g_lr: 0.0002           # Generator learning rate
+  d_lr: 0.0002           # Discriminator learning rate
+  
+  # Loss Weights
+  lambda_hpe: 1.0        # HPE alignment loss weight
+  lambda_perceptual: 0.1  # Perceptual loss weight
+  lambda_r1: 10.0        # R1 regularization weight
+  lambda_triplet: 0.5    # Triplet loss weight for HPE consistency
+  
+  # Optimization
+  beta1: 0.0             # Adam beta1
+  beta2: 0.99            # Adam beta2
+  
+  # Regularization
+  r1_interval: 16        # Apply R1 every N steps
+  ema_decay: 0.999       # Exponential moving average decay
+
+# Data Configuration
+data:
+  dataset: "things"      # THINGS dataset
+  data_root: "./data/things"
+  download_data: true    # Download THINGS dataset if not available
+  
+  # Image preprocessing
+  image_size: 256        # Training image size
+  normalize_mean: [0.5, 0.5, 0.5]  # Normalization mean
+  normalize_std: [0.5, 0.5, 0.5]   # Normalization std ([-1, 1] range)
+  
+  # Augmentation (for training split)
+  horizontal_flip: 0.5   # Horizontal flip probability
+  color_jitter:
+    brightness: 0.1      # Brightness jitter
+    contrast: 0.1        # Contrast jitter
+    saturation: 0.1      # Saturation jitter
+    hue: 0.05           # Hue jitter
+  
+  # Triplet Configuration
+  load_triplets: true    # Load human similarity triplets
+  max_triplets_per_concept: 100  # Limit triplets per concept
+
+# HPE Configuration
+hpe:
+  embedding_dim: 66      # SPoSE embedding dimension
+  input_features: 2048   # Input feature dimension (from discriminator)
+  hidden_dims: [1024, 512, 256]  # HPE network hidden layers
+  dropout: 0.1           # Dropout probability
+  normalize_embeddings: true     # L2 normalize embeddings
+  
+  # Triplet Loss
+  triplet_margin: 0.3    # Triplet loss margin
+  triplet_mining: "hard" # Hard negative mining
+
+# StyleGAN2 Architecture
+stylegan2:
+  mapping_layers: 8      # Mapping network layers
+  synthesis_layers: auto # Auto-determine from resolution
+  style_mixing_prob: 0.9 # Style mixing probability
+  
+  # Noise injection
+  use_noise: true        # Use noise injection
+  noise_strength: 1.0    # Noise strength multiplier
+  
+  # Blur kernel for upsampling
+  blur_kernel: [1, 3, 3, 1]
+
+# Discriminator Configuration
+discriminator:
+  use_hpe: true          # Enable HPE integration
+  from_rgb_std: 0.02     # FromRGB layer std
+  final_features: 512    # Final feature dimension
+
+# Evaluation
+evaluation:
+  eval_every: 10         # Evaluate every N epochs
+  save_every: 20         # Save checkpoint every N epochs
+  
+  # Metrics to compute
+  metrics:
+    - "hpe_similarity"   # HPE embedding similarity
+    - "fid_score"        # Frechet Inception Distance  
+    - "is_score"         # Inception Score
+    - "lpips"            # Learned Perceptual Image Patch Similarity
+  
+  # Sample generation
+  num_samples: 16        # Number of samples to generate
+  truncation_psi: 0.7    # Truncation strength for sampling
+
+# Logging and Checkpointing
+logging:
+  log_every: 100         # Log every N steps
+  wandb_project: "hpe-stylegan2-phase3"
+  wandb_entity: null     # Your wandb entity (optional)
+  
+  # Checkpoint settings
+  save_latest: true      # Always save latest checkpoint
+  save_best: true        # Save best checkpoint based on validation loss
+  keep_n_checkpoints: 5  # Keep N latest checkpoints
+
+# AWS Configuration
+aws:
+  use_s3: true           # Use S3 for storage
+  s3_bucket: null        # S3 bucket name (will be auto-generated)
+  upload_checkpoints: true # Upload checkpoints to S3
+  upload_logs: true      # Upload logs to S3
+  region: "us-east-2"    # AWS region
+
+# Computational Resources
+compute:
+  device: "auto"         # auto, cpu, cuda
+  mixed_precision: true  # Use mixed precision training
+  gradient_clipping: 10.0 # Gradient clipping norm
+  
+  # Multi-GPU (if available)
+  use_ddp: false         # Distributed Data Parallel
+  sync_batchnorm: false  # Synchronized batch normalization
+
+# Reproducibility
+seed: 42                 # Random seed for reproducibility
+deterministic: false     # Use deterministic algorithms (slower)
+
+# Experiment Settings
+experiment:
+  name: null             # Experiment name (auto-generated if null)
+  description: "HPE-StyleGAN2 training with THINGS dataset for human-aligned generation"
+  tags: ["hpe", "stylegan2", "human-perception", "things-dataset"]
+
+# Development Settings
+debug:
+  fast_dev_run: false    # Quick test run
+  limit_train_batches: null  # Limit training batches for testing
+  limit_val_batches: null    # Limit validation batches for testing
+  overfit_batches: 0     # Overfit to N batches for debugging
